@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Link Tracker</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f6fb;
+      color: #141b2d;
+      line-height: 1.5;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      background: #f4f6fb;
+    }
+
+    body {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 24px;
+      overflow-x: hidden;
+    }
+
+    .app {
+      width: min(1180px, 100%);
+      background: #ffffff;
+      border-radius: 24px;
+      box-shadow: 0 24px 80px rgba(20, 27, 45, 0.08);
+      overflow: visible;
+    }
+
+    header {
+      padding: 32px 32px 16px;
+      border-bottom: 1px solid #eef1f8;
+    }
+
+    header h1 {
+      margin: 0 0 10px;
+      font-size: clamp(1.8rem, 2.2vw, 2.6rem);
+    }
+
+    header p {
+      margin: 0;
+      color: #5f6985;
+      max-width: 720px;
+    }
+    #historyToggleBtn {
+      display: none;
+      border-radius: 12px;
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      background: #eef2ff;
+      color: #334155;
+      border: none;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: 1fr minmax(240px, 360px);
+      gap: 20px;
+      padding: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      #historyToggleBtn {
+        display: inline-flex;
+      }
+      .history-panel {
+        display: none;
+        width: 100%;
+        order: 3;
+        margin-top: 12px;
+      }
+      .history-panel.open {
+        display: block;
+      }
+      #historyList {
+        max-height: none;
+      }
+      .history-actions {
+        grid-template-columns: 1fr;
+      }
+      #qrPreviewContainer {
+        width: 100%;
+      }
+    }
+
+    .panel {
+      background: #fbfcff;
+      border: 1px solid #eef1f8;
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .panel h2 {
+      margin: 0 0 18px;
+      font-size: 1.2rem;
+    }
+
+    .field-group {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .field-group label {
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .field-group input {
+      width: 100%;
+      border: 1px solid #d3d8e6;
+      border-radius: 14px;
+      background: #fff;
+      padding: 14px 16px;
+      font-size: 1rem;
+      color: #101828;
+    }
+
+    .field-group input:focus {
+      outline: none;
+      border-color: #6674f4;
+      box-shadow: 0 0 0 4px rgba(102, 116, 244, 0.12);
+    }
+
+    .buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 14px 18px;
+    }
+
+    button.primary {
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+    }
+
+    button.secondary {
+      background: #eef2ff;
+      color: #334155;
+    }
+
+    button.danger {
+      background: #fee2e2;
+      color: #b91c1c;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    #qrPreviewContainer {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      border-radius: 20px;
+      background: white;
+      box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.08);
+      max-width: 100%;
+      overflow: hidden;
+    }
+
+    #qrCode {
+      width: min(300px, 40vw);
+      height: auto;
+      display: block;
+      background: white;
+      padding: 14px;
+      border-radius: 22px;
+    }
+
+    #qrCode img, #qrCode canvas {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    #currentInfo {
+      width: 100%;
+      text-align: center;
+      color: #334155;
+      font-size: 0.98rem;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    #currentInfo a {
+      color: #2563eb;
+      text-decoration: underline;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .history-empty {
+      color: #64748b;
+      padding: 22px;
+      border: 1px dashed #cbd5e1;
+      border-radius: 18px;
+      text-align: center;
+      background: #f8fafc;
+    }
+
+    .history-panel {
+      display: flex;
+      flex-direction: column;
+    }
+
+    #historyList {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: calc(100vh - 240px);
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .history-card {
+      display: grid;
+      gap: 12px;
+      padding: 18px;
+      border-radius: 18px;
+      background: white;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 16px;
+    }
+
+    .history-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .meta-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .history-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      cursor: text;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .history-name[contenteditable="true"] {
+      outline: none;
+      border-radius: 12px;
+      padding: 2px 4px;
+    }
+
+    .history-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: #475569;
+      font-size: 0.93rem;
+    }
+
+    .history-actions {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .history-actions button {
+      padding: 10px 14px;
+      width: 100%;
+    }
+
+    .scan-note {
+      color: #334155;
+      font-size: 0.95rem;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #eff6ff;
+      border: 1px solid #dbeafe;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>QR Link Tracker</h1>
+      <p>Paste any URL, generate a tracked QR code, download it, and keep a searchable history of generated codes with scan counters.</p>
+    </header>
+    <button id="historyToggleBtn" aria-expanded="false">Show history</button>
+
+    <main>
+      <section class="panel">
+        <h2>Create a tracked QR code</h2>
+        <form id="qrForm">
+          <div class="field-group">
+            <label for="urlInput">URL to encode</label>
+            <input id="urlInput" type="url" placeholder="https://example.com" required autocomplete="off" />
+          </div>
+          <div class="field-group">
+            <label for="nameInput">Friendly name</label>
+            <input id="nameInput" type="text" placeholder="My product page, event invite, etc." autocomplete="off" />
+          </div>
+          <div class="buttons">
+            <button type="submit" class="primary">Generate QR code</button>
+            <button type="button" id="clearHistoryBtn" class="secondary">Clear history</button>
+          </div>
+        </form>
+
+        <div id="qrPreviewContainer" hidden>
+          <div id="qrCode"></div>
+          <div id="currentInfo"></div>
+          <div class="buttons">
+            <button id="downloadBtn" class="primary">Download QR PNG</button>
+            <button id="copyLinkBtn" class="secondary">Copy tracked link</button>
+            <button id="refreshBtn" class="secondary">Refresh scan counts</button>
+          </div>
+          <div id="scanMessage" class="scan-note" hidden></div>
+        </div>
+      </section>
+
+      <section class="panel history-panel">
+        <h2>QR history</h2>
+        <div id="historyEmpty" class="history-empty">No QR codes generated yet. Your history appears here as you create codes.</div>
+        <div id="historyList"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script>
+    const STORAGE_KEY = 'qrTrackerHistory';
+    const qrForm = document.getElementById('qrForm');
+    const urlInput = document.getElementById('urlInput');
+    const nameInput = document.getElementById('nameInput');
+    const qrPreviewContainer = document.getElementById('qrPreviewContainer');
+    const qrCodeContainer = document.getElementById('qrCode');
+    const currentInfo = document.getElementById('currentInfo');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const historyList = document.getElementById('historyList');
+    const historyEmpty = document.getElementById('historyEmpty');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const scanMessage = document.getElementById('scanMessage');
+
+    let history = [];
+    let currentRecord = null;
+    let currentQRCode = null;
+
+    function loadHistory() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (error) {
+        console.warn('Could not load history', error);
+        return [];
+      }
+    }
+
+    function saveHistory() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+    }
+
+    function refreshHistory() {
+      history = loadHistory();
+      renderHistory();
+      if (currentRecord) {
+        const updated = history.find(item => item.id === currentRecord.id);
+        if (updated) {
+          renderQr(updated);
+        } else {
+          currentRecord = null;
+          qrPreviewContainer.hidden = true;
+        }
+      }
+      scanMessage.textContent = 'Scan counts refreshed.';
+      scanMessage.hidden = false;
+    }
+
+    function formatDate(isoString) {
+      return new Date(isoString).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function getBasePageUrl() {
+      if (location.protocol === 'file:') {
+        return location.href.split(/[?#]/)[0];
+      }
+      return `${location.origin}${location.pathname}`;
+    }
+
+    function base64EncodeUrl(url) {
+      try {
+        return btoa(unescape(encodeURIComponent(url)));
+      } catch (e) {
+        return encodeURIComponent(url);
+      }
+    }
+
+    function base64DecodeUrl(encoded) {
+      try {
+        return decodeURIComponent(escape(atob(encoded)));
+      } catch (e) {
+        try { return decodeURIComponent(encoded); } catch { return encoded; }
+      }
+    }
+
+    function createTrackedLink(id, url) {
+      const base = getBasePageUrl();
+      if (url) {
+        const u = base64EncodeUrl(url);
+        return `${base}?go=${encodeURIComponent(id)}&u=${encodeURIComponent(u)}`;
+      }
+      return `${base}?go=${encodeURIComponent(id)}`;
+    }
+
+    function renderQr(record) {
+      currentRecord = record;
+      qrCodeContainer.innerHTML = '';
+      if (currentQRCode) {
+        currentQRCode.clear();
+      }
+      currentQRCode = new QRCode(qrCodeContainer, {
+        text: createTrackedLink(record.id, record.url),
+        width: 300,
+        height: 300,
+        colorDark: '#0f172a',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.H
+      });
+      qrPreviewContainer.hidden = false;
+      scanMessage.hidden = true;
+      const trackedLink = createTrackedLink(record.id);
+      currentInfo.innerHTML = `<strong>${escapeHtml(record.name)}</strong><br><span style="color: #475569; font-size: 0.95rem;">Target: ${escapeHtml(record.url)}</span><br><span style="color: #475569; font-size: 0.95rem;">Tracked link: <a href="${escapeHtml(trackedLink)}" target="_blank" rel="noopener">Open</a></span><br><small>${formatDate(record.createdAt)}</small>`;
+      downloadBtn.disabled = false;
+      copyLinkBtn.disabled = false;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']+/g, (match) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[match]);
+    }
+
+    function renderHistory() {
+      historyList.innerHTML = '';
+      if (!history.length) {
+        historyEmpty.style.display = 'block';
+        return;
+      }
+      historyEmpty.style.display = 'none';
+
+      history.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).forEach(record => {
+        const card = document.createElement('article');
+        card.className = 'history-card';
+        card.dataset.id = record.id;
+
+        const row = document.createElement('div');
+        row.className = 'meta-row';
+
+        const title = document.createElement('div');
+        title.className = 'history-name';
+        title.contentEditable = 'true';
+        title.innerText = record.name;
+        title.title = 'Click to rename and press Enter or click away';
+        title.addEventListener('keydown', event => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            title.blur();
+          }
+        });
+        title.addEventListener('blur', () => {
+          const newName = title.innerText.trim() || generateDefaultName(record.url);
+          updateRecord(record.id, { name: newName });
+          renderHistory();
+          if (currentRecord && currentRecord.id === record.id) {
+            renderQr(history.find(item => item.id === record.id));
+          }
+        });
+
+        row.appendChild(title);
+
+        const badge = document.createElement('div');
+        badge.className = 'history-meta';
+        badge.innerHTML = `<span>Scans: <strong>${record.scans}</strong></span><span>${formatDate(record.createdAt)}</span>`;
+        row.appendChild(badge);
+
+        card.appendChild(row);
+
+        const urlCopy = document.createElement('div');
+        urlCopy.className = 'history-meta';
+        urlCopy.innerHTML = `<span style="word-break: break-all;">${escapeHtml(record.url)}</span>`;
+        card.appendChild(urlCopy);
+
+        const actions = document.createElement('div');
+        actions.className = 'history-actions';
+
+        const viewBtn = document.createElement('button');
+        viewBtn.type = 'button';
+        viewBtn.className = 'secondary';
+        viewBtn.textContent = 'Preview';
+        viewBtn.addEventListener('click', () => renderQr(record));
+
+        const openBtn = document.createElement('button');
+        openBtn.type = 'button';
+        openBtn.className = 'primary';
+        openBtn.textContent = 'Open tracked link';
+        openBtn.addEventListener('click', () => {
+          window.open(createTrackedLink(record.id, record.url), '_blank');
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'danger';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => {
+          if (confirm('Delete this QR code from history?')) {
+            deleteRecord(record.id);
+          }
+        });
+
+        actions.appendChild(viewBtn);
+        actions.appendChild(openBtn);
+        actions.appendChild(deleteBtn);
+        card.appendChild(actions);
+        historyList.appendChild(card);
+      });
+    }
+
+    function generateDefaultName(url) {
+      try {
+        return new URL(url).hostname.replace(/^www\./, '') || 'Untitled QR';
+      } catch {
+        return 'Untitled QR';
+      }
+    }
+
+    function updateRecord(id, changes) {
+      history = history.map(item => item.id === id ? { ...item, ...changes } : item);
+      saveHistory();
+    }
+
+    function deleteRecord(id) {
+      history = history.filter(item => item.id !== id);
+      if (currentRecord && currentRecord.id === id) {
+        currentRecord = null;
+        qrPreviewContainer.hidden = true;
+      }
+      saveHistory();
+      renderHistory();
+    }
+
+    function downloadCurrentQRCode() {
+      if (!currentRecord) return;
+      const img = qrCodeContainer.querySelector('img');
+      if (!img) return;
+      const link = document.createElement('a');
+      link.href = img.src;
+      const safeName = currentRecord.name.replace(/[^a-z0-9_-]+/gi, '_') || 'qr-code';
+      link.download = `${safeName}.png`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+
+    function copyTrackedLink() {
+      if (!currentRecord) return;
+      const trackedLink = createTrackedLink(currentRecord.id, currentRecord.url);
+      navigator.clipboard.writeText(trackedLink).then(() => {
+        scanMessage.textContent = 'Tracked URL copied to clipboard.';
+        scanMessage.hidden = false;
+      }).catch(() => {
+        scanMessage.textContent = 'Copy failed. Please copy manually.';
+        scanMessage.hidden = false;
+      });
+    }
+
+    function handleSubmit(event) {
+      event.preventDefault();
+      const url = urlInput.value.trim();
+      if (!url) return;
+      let normalizedUrl = url;
+      try {
+        const parsed = new URL(url);
+        normalizedUrl = parsed.href;
+      } catch {
+        alert('Please enter a valid URL starting with http:// or https://');
+        return;
+      }
+
+      const name = nameInput.value.trim() || generateDefaultName(normalizedUrl);
+      const id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+      const record = {
+        id,
+        name,
+        url: normalizedUrl,
+        createdAt: new Date().toISOString(),
+        scans: 0
+      };
+
+      history.push(record);
+      saveHistory();
+      renderHistory();
+      renderQr(record);
+      qrForm.reset();
+      urlInput.focus();
+    }
+
+    function handleClearHistory() {
+      if (!history.length) return;
+      if (confirm('Clear all stored QR codes and scan history?')) {
+        history = [];
+        localStorage.removeItem(STORAGE_KEY);
+        historyList.innerHTML = '';
+        historyEmpty.style.display = 'block';
+        qrPreviewContainer.hidden = true;
+        currentRecord = null;
+      }
+    }
+
+    function tryRedirectFromTracker() {
+      const params = new URLSearchParams(location.search);
+      const id = params.get('go');
+      if (!id) return false;
+      const record = history.find(item => item.id === id);
+      const u = params.get('u');
+      if (record) {
+        record.scans += 1;
+        saveHistory();
+        renderHistory();
+        // Use replace so tracker page isn't left in history
+        location.replace(record.url);
+        return true;
+      }
+      // If record not found but encoded URL is present, decode and redirect immediately
+      if (u) {
+        const decoded = base64DecodeUrl(decodeURIComponent(u));
+        try {
+          location.replace(decoded);
+          return true;
+        } catch (e) {
+          // fallback: try normal href
+          location.href = decoded;
+          return true;
+        }
+      }
+      // No record and no fallback URL; show message but don't block navigation
+      scanMessage.textContent = 'Tracked QR code not found in history.';
+      scanMessage.hidden = false;
+      return true;
+    }
+
+    qrForm.addEventListener('submit', handleSubmit);
+    downloadBtn.addEventListener('click', downloadCurrentQRCode);
+    copyLinkBtn.addEventListener('click', copyTrackedLink);
+    clearHistoryBtn.addEventListener('click', handleClearHistory);
+    refreshBtn.addEventListener('click', refreshHistory);
+    const historyToggleBtn = document.getElementById('historyToggleBtn');
+    const historyPanel = document.querySelector('.history-panel');
+    if (historyToggleBtn && historyPanel) {
+      historyToggleBtn.addEventListener('click', () => {
+        const open = historyPanel.classList.toggle('open');
+        historyToggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        historyToggleBtn.textContent = open ? 'Hide history' : 'Show history';
+        if (open) {
+          // scroll into view on open
+          historyPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+
+    history = loadHistory();
+    renderHistory();
+    if (!tryRedirectFromTracker()) {
+      const lastRecord = history.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+      if (lastRecord) {
+        renderQr(lastRecord);
+      }
+    }
+  </script>
+</body>
+</html>
